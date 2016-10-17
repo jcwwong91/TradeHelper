@@ -10,13 +10,18 @@ import (
 	"os"
 	"os/signal"
 
+	t "tradeHelper/tracker"
+
 	"github.com/gorilla/mux"
 )
 
 var(
 	port = flag.Int("port", 80, "The port to serve off of")
 	web = flag.String("web", "/web", "The directory of static files for the web to serve" )
+	tracker *t.Tracker
 )
+
+
 
 type handlerError struct {
 	err error
@@ -59,17 +64,28 @@ func (fn handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func getStock(w http.ResponseWriter, r *http.Request) (interface{}, *handlerError) {
 	ticker := mux.Vars(r)["ticker"]
-	log.Println("Getting", ticker)
-	return ticker, nil
+	if ticker == "" {
+		return nil, &handlerError{fmt.Errorf("No stock specified"), 400}
+	}
+	stock, err := tracker.GetStockConfig(ticker)
+	if err != nil {
+		return nil, &handlerError{err, 500}
+	}
+	return stock, nil
 }
 
 func addStock(w http.ResponseWriter, r *http.Request) (interface{}, *handlerError) {
 	ticker := mux.Vars(r)["ticker"]
+	if ticker == "" {
+		return nil, &handlerError{fmt.Errorf("No stock specified"), 400}
+	}
+
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return nil, &handlerError{err, 500}
 	}
 
+	tracker.TrackStock(ticker)
 	var payload struct {
 		// TODO: Extend with internal
 	}
@@ -84,13 +100,21 @@ func addStock(w http.ResponseWriter, r *http.Request) (interface{}, *handlerErro
 
 func deleteStock(w http.ResponseWriter, r *http.Request) (interface{}, *handlerError) {
 	ticker := mux.Vars(r)["ticker"]
-	log.Println("Removing", ticker)
-	return ticker, nil
+	if ticker == "" {
+		return nil, &handlerError{fmt.Errorf("No stock specified"), 400}
+	}
+	err := tracker.StopTrackingStock(ticker)
+	if err != nil {
+		return nil, &handlerError{err, 500}
+	}
+	return "Stock Removed", nil
 }
 
 func main() {
 
 	flag.Parse()
+
+	tracker = t.NewTracker()
 
 	// handle all requests by serving a file of the same name
 	fs := http.Dir(*web)
