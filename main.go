@@ -85,8 +85,8 @@ func addStock(w http.ResponseWriter, r *http.Request) (interface{}, *handlerErro
 		return nil, &handlerError{err, 500}
 	}
 
-	tracker.TrackStock(ticker)
 	var payload struct {
+		Tolerance float64
 		// TODO: Extend with internal
 	}
 
@@ -94,6 +94,10 @@ func addStock(w http.ResponseWriter, r *http.Request) (interface{}, *handlerErro
 		return nil, &handlerError{err, 500}
 	}
 
+	if payload.Tolerance == 0 {
+		payload.Tolerance = 0.1
+	}
+	tracker.TrackStock(ticker, payload.Tolerance)
 	log.Println("Tracking", ticker, "with", payload, "settings")
 	return payload, nil
 }
@@ -108,6 +112,18 @@ func deleteStock(w http.ResponseWriter, r *http.Request) (interface{}, *handlerE
 		return nil, &handlerError{err, 500}
 	}
 	return "Stock Removed", nil
+}
+
+func getStockInfo(w http.ResponseWriter, r *http.Request) (interface{}, *handlerError) {
+	ticker := mux.Vars(r)["ticker"]
+	if ticker == "" {
+		return nil, &handlerError{fmt.Errorf("No stock specified"), 400}
+	}
+	stock, err := tracker.GetStockInfo(ticker)
+	if err != nil {
+		return nil, &handlerError{err, 500}
+	}
+	return stock, nil
 }
 
 func main() {
@@ -126,6 +142,7 @@ func main() {
 	router.Handle("/stocks/{ticker}", handler(getStock)).Methods("GET")
 	router.Handle("/stocks/{ticker}", handler(addStock)).Methods("POST")
 	router.Handle("/stocks/{ticker}", handler(deleteStock)).Methods("DELETE")
+	router.Handle("/stocks/{ticker}/info", handler(getStockInfo)).Methods("GET")
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static", fileHandler))
 	http.Handle("/", router)
 
