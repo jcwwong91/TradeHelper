@@ -62,6 +62,10 @@ func (fn handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s %s %d", r.RemoteAddr, r.Method, r.URL, 200)
 }
 
+func getAllStock(w http.ResponseWriter, r *http.Request) (interface{}, *handlerError) {
+	return tracker.GetTrackedStocks(), nil
+}
+
 func getStock(w http.ResponseWriter, r *http.Request) (interface{}, *handlerError) {
 	ticker := mux.Vars(r)["ticker"]
 	if ticker == "" {
@@ -139,6 +143,7 @@ func main() {
 	// setup routes
 	router := mux.NewRouter()
 	router.Handle("/", http.RedirectHandler("/static/", 302))
+	router.Handle("/stocks", handler(getAllStock)).Methods("GET")
 	router.Handle("/stocks/{ticker}", handler(getStock)).Methods("GET")
 	router.Handle("/stocks/{ticker}", handler(addStock)).Methods("POST")
 	router.Handle("/stocks/{ticker}", handler(deleteStock)).Methods("DELETE")

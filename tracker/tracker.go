@@ -42,6 +42,15 @@ func (t *Tracker) TrackStock(ticker string, tolerance float64) error {
 	return nil
 }
 
+// GetTrackedStocks returns a list of all the stocks it is currently tracking
+func (t *Tracker) GetTrackedStocks() ([]string) {
+	ret := []string{}
+	for k, _ := range t.stocks {
+		ret = append(ret, k)
+	}
+	return ret
+}
+
 // GetStockConfig retrieves the technical analysis information/configuration
 // about a particular stock
 func (t *Tracker) GetStockConfig(ticker string) (*stock.Config, error) {
