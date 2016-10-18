@@ -20,14 +20,22 @@ type Config struct {
 }
 
 type Info struct {
-	Peaks int		// Number of times hit resistance
-	Troughs int		// Number of times hit support
-	Min float64		// Assume this is support value
-	Max float64		// Assume this is resistance value
+	Min Point		// Minimum stock price found
+	Max Point		// Maximum stock price found
 	LastClose float64	// The last closing price detected
 	LastOpen float64	// The last openning price detected
+	Supports []*Trend	// List of trends found at support level
+	Resistances []*Trend	// List of trends found at resistance level
+
+	SMA []float64		// Simple moving averages for current stock
+	EMA []float64		// Exponential moving averages for current stock
 
 	sync.Mutex
+}
+
+type Point struct {
+	T time.Time	// The time this point represents
+	V float64	// The time this point represenets
 }
 
 // GetInfo returns a copy of some calculated information about the stock
@@ -68,10 +76,11 @@ func (s *Stock) CalculateInfo() {
 }
 
 func (s *Stock) calcRS(bars []*finance.Bar) {
-	var min, max, sum float64
-	minimas := []float64{}
-	maximas := []float64{}
+	var min, max Point
+	minimas := []*Point{}
+	maximas := []*Point{}
 	dayAvgs := []float64{}
+	var sum float64
 	for i, bar := range bars {
 		var upper, lower float64
 		open ,_ := bar.Open.Float64() // Don't care if exact
@@ -83,11 +92,11 @@ func (s *Stock) calcRS(bars []*finance.Bar) {
 			upper = close
 			lower = open
 		}
-		if lower < min || i == 0{
-			min = lower
+		if lower < min.V || i == 0{
+			min = Point{V:lower, T:bar.Date}
 		}
-		if upper > max {
-			max = upper
+		if upper > max.V {
+			max = Point{V:upper, T:bar.Date}
 		}
 		if i != 0 && i != len(bars) -1 {
 			var prevLow, prevUp float64
@@ -113,10 +122,10 @@ func (s *Stock) calcRS(bars []*finance.Bar) {
 			}
 
 			if prevUp < upper && nextUp < upper {
-				maximas = append(maximas, upper)
+				maximas = append(maximas, &Point{V:upper, T:bar.Date})
 			}
 			if prevLow > lower && nextLow > lower {
-				minimas = append(minimas, lower)
+				minimas = append(minimas, &Point{V:lower, T:bar.Date})
 			}
 		}
 		dayAvg := (upper + lower)/2
@@ -133,20 +142,62 @@ func (s *Stock) calcRS(bars []*finance.Bar) {
 	}
 	sd := math.Sqrt(sum)
 
-	s.info.Peaks = 0
-	tolerance := sd * s.config.RSTolerance
-	for _, v := range maximas {
-		if v + tolerance >= max {
-			s.info.Peaks++
+	s.info.Supports = s.findTrends(minimas, sd*s.config.RSTolerance)
+	s.info.Resistances = s.findTrends(maximas, sd*s.config.RSTolerance)
+	s.calcSMA(bars)
+	s.calcEMA(bars)
+	s.info.Min = min
+	s.info.Max = max
+}
+
+func (s *Stock) findTrends(points []*Point, tol float64) []*Trend{
+
+	trends := []*Trend {}
+	for i, _ := range points {
+		v1 := points[i].V
+		for j := i+1; j < len(points); j++ {
+			v2 := points[j].V
+			duration := points[i].T.Sub(points[j].T)
+			trend := Trend{}
+			trend.Slope = (v2 - v1) / duration.Seconds()
+			trend.Constant = v2 - (trend.Slope * float64(points[j].T.Unix()))
+			trend.Points = []*Point{}
+			trends = append(trends, &trend)
 		}
 	}
 
-	s.info.Troughs = 0
-	for _, v:= range minimas {
-		if v - tolerance <= min {
-			s.info.Troughs++
+	for _, t := range trends {
+		for _, p := range points {
+			v := (t.Slope * float64(p.T.Unix())) + t.Constant
+			lower := v - tol
+			upper := v + tol
+			if p.V > lower && p.V < upper {
+				t.Hits++
+				t.Points = append(t.Points,p)
+			}
 		}
 	}
-	s.info.Min = min
-	s.info.Max = max
+	return trends
+}
+
+func (s *Stock) calcEMA(bars []*finance.Bar) {
+	s.info.EMA = []float64{0}
+	for i, bar := range bars {
+		multiplier := (2.0 /  (float64(i) + 1.0))
+		v,_ := bar.Close.Float64()
+		ema := (v - s.info.EMA[i]) * multiplier + s.info.EMA[i]
+		s.info.EMA = append(s.info.EMA, ema)
+	}
+	s.info.EMA[0] = 0.0 // Seems ot have +inf which messes with json
+}
+
+func (s *Stock) calcSMA(bars []*finance.Bar) {
+	sum := 0.0
+	s.info.SMA = []float64{}
+	for i, bar := range bars {
+		c, _ := bar.Close.Float64()
+		sum += c
+		s.info.SMA = append(s.info.SMA, sum/float64(i))
+	}
+	s.info.SMA[0] = 0.0	// Seems to have +inf which is messing with JSON
 }

@@ -52,6 +52,8 @@ func (fn handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// turn the response into JSON
 	bytes, e := json.Marshal(response)
 	if e != nil {
+		log.Println(response)
+		log.Println("Error marshalling JSON:", e)
 		http.Error(w, "Error marshalling JSON", http.StatusInternalServerError)
 		return
 	}
@@ -132,6 +134,7 @@ func getStockInfo(w http.ResponseWriter, r *http.Request) (interface{}, *handler
 
 func main() {
 
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
 
 	tracker = t.NewTracker()
