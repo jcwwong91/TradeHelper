@@ -1,7 +1,9 @@
 package tracker
 
 import(
+	"bufio"
 	"fmt"
+	"os"
 
 	"tradeHelper/stock"
 )
@@ -37,7 +39,9 @@ func (t *Tracker) TrackStock(ticker string, tolerance float64) error {
 
 	//TODO: Add stock to DB	
 	t.stocks[ticker] = s
-	go s.CalculateInfo()
+	go func() {
+		s.CalculateInfo()
+	}()
 
 	return nil
 }
@@ -71,11 +75,30 @@ func (t *Tracker) StopTrackingStock(ticker string) error {
 	return nil
 }
 
-// 
+// GetStockInfo returns a list of information regarding a particular stock
 func (t *Tracker) GetStockInfo(ticker string) (*stock.Info, error) {
 	if t.stocks[ticker] == nil {
 		return nil, fmt.Errorf("The stock with ticker %s was not found", ticker)
 	}
 	info := t.stocks[ticker].GetInfo()
 	return &info, nil
+}
+
+// Load takes in a csv and fetchs all stocks specified in the file
+func (t *Tracker) Load(filename string) error {
+	file, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		t.TrackStock(scanner.Text(),0.15)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	return nil
 }

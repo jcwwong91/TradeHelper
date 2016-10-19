@@ -18,6 +18,7 @@ import (
 var(
 	port = flag.Int("port", 80, "The port to serve off of")
 	web = flag.String("web", "/web", "The directory of static files for the web to serve" )
+	csv = flag.String("csv", "", "A list of stock tickers to watch")
 	tracker *t.Tracker
 )
 
@@ -154,8 +155,15 @@ func main() {
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static", fileHandler))
 	http.Handle("/", router)
 
+	if *csv != "" {
+		if err := tracker.Load(*csv); err != nil {
+			log.Fatalf(err.Error())
+		}
+	}
+
 	go func() {
 		addr := fmt.Sprintf(":%d", *port)
+		log.Println("Serving on %s", addr)
 		if http.ListenAndServe(addr, nil) != nil {
 			log.Fatalf("Failed to start webserver")
 		}

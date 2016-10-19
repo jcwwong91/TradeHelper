@@ -70,9 +70,11 @@ func (s *Stock) CalculateInfo() {
 		log.Println("Error getting quote history for '%s'", s.Ticker)
 	}
 
+	if len(bars) > 0 {
 	s.calcRS(bars)
-	s.info.LastClose, _ = bars[0].Close.Float64()
-	s.info.LastOpen, _ = bars[0].Open.Float64()
+		s.info.LastClose, _ = bars[0].Close.Float64()
+		s.info.LastOpen, _ = bars[0].Open.Float64()
+	}
 }
 
 func (s *Stock) calcRS(bars []*finance.Bar) {
@@ -163,6 +165,8 @@ func (s *Stock) findTrends(points []*Point, tol float64) []*Trend{
 			trend.Constant = v2 - (trend.Slope * float64(points[j].T.Unix()))
 			trend.Points = []*Point{}
 			trends = append(trends, &trend)
+			trend.Parent1 = points[i]
+			trend.Parent2 = points[j]
 		}
 	}
 
@@ -188,7 +192,9 @@ func (s *Stock) calcEMA(bars []*finance.Bar) {
 		ema := (v - s.info.EMA[i]) * multiplier + s.info.EMA[i]
 		s.info.EMA = append(s.info.EMA, ema)
 	}
-	s.info.EMA[0] = 0.0 // Seems ot have +inf which messes with json
+	if len(s.info.EMA) > 0 {
+		s.info.EMA[0] = 0.0 // Seems ot have +inf which messes with json
+	}
 }
 
 func (s *Stock) calcSMA(bars []*finance.Bar) {
@@ -199,5 +205,8 @@ func (s *Stock) calcSMA(bars []*finance.Bar) {
 		sum += c
 		s.info.SMA = append(s.info.SMA, sum/float64(i))
 	}
-	s.info.SMA[0] = 0.0	// Seems to have +inf which is messing with JSON
+	if len(s.info.SMA) > 0 {
+		s.info.SMA[0] = 0.0	// Seems to have +inf which is messing with JSON
+	}
 }
+

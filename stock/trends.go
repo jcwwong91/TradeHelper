@@ -6,5 +6,7 @@ type Trend struct {
 	Slope float64		// Slope of linear function
 	Constant float64	// Constant of linear function
 	Points []*Point		// Points that hit trend
+	Parent1 *Point
+	Parent2 *Point
 }
 
