@@ -102,7 +102,7 @@ func addStock(w http.ResponseWriter, r *http.Request) (interface{}, *handlerErro
 	}
 
 	if payload.Tolerance == 0 {
-		payload.Tolerance = 0.1
+		payload.Tolerance = 0.05
 	}
 	tracker.TrackStock(ticker, payload.Tolerance)
 	log.Println("Tracking", ticker, "with", payload, "settings")

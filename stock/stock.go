@@ -9,6 +9,7 @@ import(
 	"github.com/FlashBoys/go-finance"
 )
 
+
 type Stock struct {
 	Ticker string
 	info Info
@@ -30,6 +31,7 @@ type Info struct {
 	SMA []float64		// Simple moving averages for current stock
 	EMA []float64		// Exponential moving averages for current stock
 
+	sd float64
 	sync.Mutex
 }
 
@@ -142,10 +144,11 @@ func (s *Stock) calcRS(bars []*finance.Bar) {
 		diff := v - mean
 		sum += diff * diff
 	}
-	sd := math.Sqrt(sum)
+	s.info.sd = math.Sqrt(sum)
+	log.Println(s.info.sd)
 
-	s.info.Supports = s.findTrends(minimas, sd*s.config.RSTolerance)
-	s.info.Resistances = s.findTrends(maximas, sd*s.config.RSTolerance)
+	s.info.Supports = s.findTrends(minimas, s.info.sd*s.config.RSTolerance)
+	s.info.Resistances = s.findTrends(maximas, s.info.sd*s.config.RSTolerance)
 	s.calcSMA(bars)
 	s.calcEMA(bars)
 	s.info.Min = min
@@ -159,10 +162,16 @@ func (s *Stock) findTrends(points []*Point, tol float64) []*Trend{
 		v1 := points[i].V
 		for j := i+1; j < len(points); j++ {
 			v2 := points[j].V
-			duration := points[i].T.Sub(points[j].T)
 			trend := Trend{}
-			trend.Slope = (v2 - v1) / duration.Seconds()
-			trend.Constant = v2 - (trend.Slope * float64(points[j].T.Unix()))
+			diff := v1 - v2
+			if diff < tol && diff > tol * -1 {
+				trend.Slope = 0
+				trend.Constant = v2
+			} else {
+				duration := (points[i].T.Unix() - points[j].T.Unix())
+				trend.Slope = diff / float64(duration)
+				trend.Constant = v2 - (trend.Slope * float64(points[j].T.Unix()))
+			}
 			trend.Points = []*Point{}
 			trends = append(trends, &trend)
 			trend.Parent1 = points[i]
@@ -179,6 +188,7 @@ func (s *Stock) findTrends(points []*Point, tol float64) []*Trend{
 				t.Hits++
 				t.Points = append(t.Points,p)
 			}
+
 		}
 	}
 	return trends
